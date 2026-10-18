@@ -16,28 +16,20 @@ description: 从一次 git push 到博客上线的完整链路解析,以及踩�
 
 ## 整体架构
 
-```mermaid
-flowchart LR
-  subgraph local[你的电脑]
-    A[编辑 Markdown] --> B[git commit + push]
-  end
-
-  subgraph github[GitHub 平台]
-    B --> C[检测到 main 分支更新]
-    C --> D[启动云端 Runner]
-    D --> E1[Checkout 代码]
-    E1 --> E2[安装 Node 依赖]
-    E2 --> E3[构建静态文件]
-    E3 --> E4[读取 SSH 私钥 Secret]
-    E4 --> E5[测试 SSH 连通]
-    E5 --> E6[rsync 同步到服务器]
-  end
-
-  subgraph server[目标服务器]
-    E6 -->|SSH 加密通道| F[写入网站目录]
-    F --> G[Nginx 提供访问]
-    G --> H[浏览器打开博客]
-  end
+```
++--------------------+     +---------------------+     +------------------+
+|     你的电脑       |     |     GitHub 平台     |     |   目标服务器     |
++--------------------+     +---------------------+     +------------------+
+| 1. 编辑 Markdown   |     | 1. 检测 main 更新   |     |                  |
+| 2. git commit      | --> | 2. 启动 Runner      |     |                  |
+| 3. git push        |     | 3. 拉取代码         |     |                  |
+|                    |     | 4. npm ci           |     |                  |
+|                    |     | 5. npm run build    |     |                  |
+|                    |     | 6. 读取 SSH 私钥   |     |                  |
+|                    |     | 7. 测试 SSH 连通    | --> | 写入网站目录     |
+|                    |     | 8. rsync 同步       |     | Nginx 提供访问   |
+|                    |     |                     |     | 浏览器打开博客   |
++--------------------+     +---------------------+     +------------------+
 ```
 
 六个步骤,平均耗时 30-60 秒。
