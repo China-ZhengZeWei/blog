@@ -25,16 +25,26 @@ jobs:
       - name: Build VitePress site
         run: npm run docs:build
 
-      - name: Setup SSH
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H -p ${SSH_PORT:-22} "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "Key file size: $(wc -c < ~/.ssh/id_ed25519) bytes"
+
+      - name: Test SSH connection
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+              -p ${SSH_PORT:-22} \
+              -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=15 \
+              -o BatchMode=yes \
+              ${SSH_USER}@${SSH_HOST} \
+              "echo 'SSH_OK' && echo 'Deploy path exists:' && ls -la ${DEPLOY_PATH}"
 
       - name: Deploy via rsync
         run: |
           rsync -avz --delete \
-            -e "ssh -p ${SSH_PORT:-22} -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
+            -e "ssh -p ${SSH_PORT:-22} -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o ConnectTimeout=15" \
             docs/.vitepress/dist/ \
             ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/
