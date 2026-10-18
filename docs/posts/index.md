@@ -9,7 +9,7 @@ layout: page
 
 ## 最新文章
 
-- [用 GitHub Actions 自动化部署 VitePress 博客](/posts/2026-10-18-用GitHubActions自动部署) —— *2026-10-18 · GitHub Actions / CI/CD*
+- [用 GitHub Actions 自动化部署 VitePress 博客](/posts/2026-10-18-用github-actions自动部署) —— *2026-10-18 · GitHub Actions / CI/CD*
 - [你好,VitePress](/posts/2026-10-18-hello-vitepress) —— *2026-10-18 · VitePress / 博客*
 - [Markdown 写作小贴士](/posts/2026-10-18-markdown-tips) —— *2026-10-18 · 工具 / 写作*
 
