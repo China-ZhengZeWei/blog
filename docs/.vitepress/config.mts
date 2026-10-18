@@ -2,9 +2,9 @@ import { defineConfig } from 'vitepress'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  // 部署到 GitHub Pages 项目页时使用 `/<repo-name>/`,个人页使用 `/`
-  // 部署前根据实际仓库名调整
-  base: '/',
+  // GitHub Pages 项目页路径:`https://<username>.github.io/<repo-name>/`
+  // 个人页路径使用 `/`
+  base: '/blog/',
 
   lang: 'zh-CN',
   title: "我的博客",
