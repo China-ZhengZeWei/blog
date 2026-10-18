@@ -4,7 +4,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   // GitHub Pages 项目页路径:`https://<username>.github.io/<repo-name>/`
   // 个人页路径使用 `/`
-  base: '/blog/',
+  base: '/',
 
   lang: 'zh-CN',
   title: "我的博客",
