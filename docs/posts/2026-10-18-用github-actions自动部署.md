@@ -17,49 +17,40 @@ description: git push 一行命令,完成博客从构建到上线的全流程。
 
 动手前先把整条链路看清楚——后面所有配置都对得上这张图。
 
-### 完整流程图(Mermaid)
-
-```mermaid
-flowchart LR
-    A["🖊️ 本地编辑<br/>git commit"] --> B["📤 git push"]
-    B --> C["📡 GitHub 接收推送<br/>触发 workflow"]
-    C --> D["🤖 Runner · ubuntu-latest"]
-    D --> D1["actions/checkout@v4"]
-    D1 --> D2["npm ci<br/>(命中缓存)"]
-    D2 --> D3["npm run docs:build<br/>→ dist/"]
-    D3 --> D4["写入 SSH 私钥<br/>写入 ~/.ssh/id_ed25519"]
-    D4 --> E["🔌 SSH 连通性测试<br/>ssh echo OK"]
-    E -- 失败 --> X["❌ 任务失败<br/>查看 Actions 日志"]
-    E -- 通过 --> F["📦 rsync 同步<br/>dist/ → 服务器"]
-    F --> G["🖥️ 服务器<br/>Nginx 提供访问"]
-    G --> H["🌐 用户访问<br/>博客上线"]
+```
+   ┌──────────┐   ┌──────────┐   ┌──────────┐
+   │ 1. 本地   │──▶│ 2. 推送   │──▶│ 3. GitHub │
+   │ git commit│   │ git push │   │ 触发 workflow │
+   └──────────┘   └──────────┘   └──────┬───┘
+                                         ▼
+                            ┌──────────────────────────┐
+                            │ 4. Runner (ubuntu-latest) │
+                            │                           │
+                            │ checkout → npm ci → build │
+                            │ → 写 SSH 私钥 → ssh test │
+                            └────────────┬──────────────┘
+                                         │
+                          ┌──────────────┴──────────────┐
+                          ▼ 失败                         ▼ 通过
+                  ┌──────────────┐             ┌──────────────┐
+                  │ 任务失败       │             │ 5. rsync 同步  │
+                  │ 查看 Actions 日志│            │ dist/ → 服务器 │
+                  └──────────────┘             └──────┬───────┘
+                                                       ▼
+                                              ┌──────────────────┐
+                                              │ 6. Nginx 提供访问  │
+                                              │ 博客上线          │
+                                              └──────────────────┘
 ```
 
-### ASCII 速览
+整条链路 6 个节点:本地提交 → 推送 → GitHub 触发 → Runner 构建 → rsync 同步 → Nginx 上线。
 
-```
-本地  ──git push──▶  GitHub  ──webhook──▶  Runner
-                                              │
-                                    checkout → npm ci → build
-                                              │
-                                          ssh test
-                                              │
-                                            rsync
-                                              ▼
-                                         服务器 · Nginx
-```
-
-### 各环节耗时与关键命令
-
-| 环节         | 耗时       | 关键产物 / 命令                   | 失败常见原因                |
-| ------------ | ---------- | --------------------------------- | --------------------------- |
-| 触发 + 拉取  | 5~10 s     | `on: push: branches: [main]`      | 分支名不匹配                |
-| 安装依赖     | 10~20 s    | `npm ci`(命中缓存更快)            | `package-lock.json` 缺失    |
-| 静态构建     | 15~25 s    | `docs/.vitepress/dist/`           | 路径或脚本名错              |
-| SSH 连通测试 | 2~3 s      | `ssh ... echo OK`                 | 密钥未写入 `authorized_keys` |
-| rsync 同步   | 3~10 s     | `rsync -avz --delete`             | 端口、目录权限问题          |
-
-理解了链路,再开始配置密钥和 Secrets。
+| 环节        | 耗时       | 关键命令                          |
+| ----------- | ---------- | --------------------------------- |
+| 触发 + 拉取 | 5~10 s     | `on: push: branches: [main]`      |
+| 安装依赖    | 10~20 s    | `npm ci`(命中缓存更快)            |
+| 静态构建    | 15~25 s    | `npm run docs:build`              |
+| SSH + rsync | 5~15 s     | `rsync -avz --delete`             |
 
 ## 二、准备工作
 
