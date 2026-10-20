@@ -78,4 +78,62 @@ export default defineConfig({
       label: '本页目录',
     },
   },
+
+  // 客户端:从 CDN 加载 mermaid,扫描 ```mermaid 代码块渲染成 SVG
+  enhanceApp({ isServer }) {
+    if (isServer || typeof window === 'undefined') return
+
+    let mermaidPromise = null
+    const ensureMermaid = () => {
+      if (!mermaidPromise) {
+        mermaidPromise = import(
+          /* @vite-ignore */
+          'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'
+        ).then((m) => {
+          m.default.initialize({
+            startOnLoad: false,
+            securityLevel: 'loose',
+            fontFamily: 'inherit',
+          })
+          return m.default
+        })
+      }
+      return mermaidPromise
+    }
+
+    const renderAll = () => {
+      ensureMermaid().then((mermaid) => {
+        document
+          .querySelectorAll('pre code.language-mermaid')
+          .forEach((codeEl) => {
+            const preEl = codeEl.parentElement
+            if (!preEl || preEl.dataset.mermaidRendered) return
+            preEl.dataset.mermaidRendered = '1'
+            const id = `m${Math.random().toString(36).slice(2, 9)}`
+            const text = codeEl.textContent || ''
+            if (!text.trim()) return
+            mermaid
+              .render(id, text)
+              .then(({ svg }) => {
+                const wrapper = document.createElement('div')
+                wrapper.className = 'mermaid'
+                wrapper.innerHTML = svg
+                preEl.replaceWith(wrapper)
+              })
+              .catch((err) => {
+                console.error('[mermaid]', err)
+                const msg = document.createElement('div')
+                msg.style.color = '#c00'
+                msg.style.fontSize = '0.9em'
+                msg.textContent = `Mermaid 渲染失败: ${err?.message || err}`
+                preEl.insertAdjacentElement('afterend', msg)
+              })
+          })
+      })
+    }
+
+    renderAll()
+    const obs = new MutationObserver(() => renderAll())
+    obs.observe(document.body, { childList: true, subtree: true })
+  }
 })
