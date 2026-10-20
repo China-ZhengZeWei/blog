@@ -11,24 +11,57 @@ description: git push 一行命令,完成博客从构建到上线的全流程。
 
 # 用 GitHub Actions 自动化部署 VitePress 博客
 
-写完博客要手动 FTP 上传、登服务器刷新,太繁琐。这篇文章用 **GitHub Actions + SSH + rsync** 把这条链路简化成 `git push` 一行命令。
+写完博客要手动 FTP 上传、登服务器刷新,链路长、容易断。这篇文章用 **GitHub Actions + SSH + rsync** 把这件事压成 `git push` 一行命令,端到端耗时 30~60 秒。
 
-## 整体流程
+## 一、整体流程
+
+动手前先把整条链路看清楚——后面所有配置都对得上这张图。
+
+### 完整流程图(Mermaid)
+
+```mermaid
+flowchart LR
+    A["🖊️ 本地编辑<br/>git commit"] --> B["📤 git push"]
+    B --> C["📡 GitHub 接收推送<br/>触发 workflow"]
+    C --> D["🤖 Runner · ubuntu-latest"]
+    D --> D1["actions/checkout@v4"]
+    D1 --> D2["npm ci<br/>(命中缓存)"]
+    D2 --> D3["npm run docs:build<br/>→ dist/"]
+    D3 --> D4["写入 SSH 私钥<br/>写入 ~/.ssh/id_ed25519"]
+    D4 --> E["🔌 SSH 连通性测试<br/>ssh echo OK"]
+    E -- 失败 --> X["❌ 任务失败<br/>查看 Actions 日志"]
+    E -- 通过 --> F["📦 rsync 同步<br/>dist/ → 服务器"]
+    F --> G["🖥️ 服务器<br/>Nginx 提供访问"]
+    G --> H["🌐 用户访问<br/>博客上线"]
+```
+
+### ASCII 速览
 
 ```
-本地 edit + commit
-   ↓ git push
-GitHub 触发 workflow
-   ↓
-Runner · 云端 CI 虚拟机
-   ↓ checkout + npm ci + docs:build
-   ↓ SSH + rsync
-服务器 · Nginx 提供访问
+本地  ──git push──▶  GitHub  ──webhook──▶  Runner
+                                              │
+                                    checkout → npm ci → build
+                                              │
+                                          ssh test
+                                              │
+                                            rsync
+                                              ▼
+                                         服务器 · Nginx
 ```
 
-整条链路 30~60 秒。
+### 各环节耗时与关键命令
 
-## 一、准备工作
+| 环节         | 耗时       | 关键产物 / 命令                   | 失败常见原因                |
+| ------------ | ---------- | --------------------------------- | --------------------------- |
+| 触发 + 拉取  | 5~10 s     | `on: push: branches: [main]`      | 分支名不匹配                |
+| 安装依赖     | 10~20 s    | `npm ci`(命中缓存更快)            | `package-lock.json` 缺失    |
+| 静态构建     | 15~25 s    | `docs/.vitepress/dist/`           | 路径或脚本名错              |
+| SSH 连通测试 | 2~3 s      | `ssh ... echo OK`                 | 密钥未写入 `authorized_keys` |
+| rsync 同步   | 3~10 s     | `rsync -avz --delete`             | 端口、目录权限问题          |
+
+理解了链路,再开始配置密钥和 Secrets。
+
+## 二、准备工作
 
 **1. 在服务器生成密钥对**(目标服务器执行):
 
@@ -49,7 +82,7 @@ cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys
 | `SSH_PORT`        | SSH 端口                            |
 | `DEPLOY_PATH`     | 网站目录绝对路径                    |
 
-## 二、workflow 文件
+## 三、workflow 文件
 
 在仓库根目录创建 `.github/workflows/deploy.yml`:
 
@@ -102,28 +135,4 @@ jobs:
 
 </div>
 
-## 三、几个常见坑
-
-### Secret 名称不能有空格
-
-只允许字母/数字/下绕线,且以字母或下绕线开头。
-
-### 在 bash 里一定要用 `secrets.X` 语法
-
-GitHub Actions **不会**把 secrets 自动注入 bash 环境。在 bash 里直接写裸变量名变成空串,必须用 GitHub Actions 的 <code v-pre>${{ '{{' }} secrets.X }}</code> 语法(在 bash 执行前就被替换好)。
-
-### 宝塔保护文件
-
-宝塔在网站目录放 `.user.ini` 和 `.htaccess`,加了 `chattr +i` 不可删。rsync 的 `--delete` 会卡住。用 `P`(protect)过滤:
-
-```bash
-rsync --delete --filter='P .user.ini' --filter='P .htaccess' ...
-```
-
-### git push 超时
-
-```powershell
-git config --global http.proxy http://127.0.0.1:7890
-git push origin main
-git config --global --unset http.proxy
-```
+跑一次试试:`git push origin main`,打开仓库的 **Actions** 页签看每一步的执行日志。
